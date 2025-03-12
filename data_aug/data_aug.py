@@ -36,18 +36,26 @@ class RandomHorizontalFlip(object):
         self.p = p
 
     def __call__(self, img, bboxes):
-            img_center = np.array(img.shape[:2])[::-1]/2
-            img_center = np.hstack((img_center, img_center))
-            if random.random() < self.p:
-                img = img[:, ::-1, :]
-                bboxes[:, [0, 2]] += 2*(img_center[[0, 2]] - bboxes[:, [0, 2]])
-
-                box_w = abs(bboxes[:, 0] - bboxes[:, 2])
-
-                bboxes[:, 0] -= box_w
-                bboxes[:, 2] += box_w
-
+        # 添加空数组检查和维度处理
+        if len(bboxes) == 0:
             return img, bboxes
+            
+        # 确保bboxes是二维数组
+        if len(bboxes.shape) == 1:
+            bboxes = bboxes[np.newaxis, :]
+            
+        img_center = np.array(img.shape[:2])[::-1]/2
+        img_center = np.hstack((img_center, img_center))
+        if random.random() < self.p:
+            img = img[:, ::-1, :]
+            bboxes[:, [0, 2]] += 2*(img_center[[0, 2]] - bboxes[:, [0, 2]])
+
+            box_w = abs(bboxes[:, 0] - bboxes[:, 2])
+
+            bboxes[:, 0] -= box_w
+            bboxes[:, 2] += box_w
+
+        return img, bboxes
 
 
 class HorizontalFlip(object):
@@ -208,21 +216,23 @@ class Scale(object):
         
 
     def __call__(self, img, bboxes):
-    
         
-        #Chose a random digit to scale by 
-        
+        # 添加空数组检查和维度处理
+        if len(bboxes) == 0:
+            return img, bboxes
+            
+        # 确保bboxes是二维数组
+        if len(bboxes.shape) == 1 and bboxes.size > 0:
+            bboxes = bboxes[np.newaxis, :]
+
+        w,h = img.shape[1], img.shape[0]
         img_shape = img.shape
-        
-        
         resize_scale_x = 1 + self.scale_x
         resize_scale_y = 1 + self.scale_y
         
         img=  cv2.resize(img, None, fx = resize_scale_x, fy = resize_scale_y)
         
         bboxes[:,:4] *= [resize_scale_x, resize_scale_y, resize_scale_x, resize_scale_y]
-        
-        
         
         canvas = np.zeros(img_shape, dtype = np.uint8)
         
@@ -363,6 +373,15 @@ class Translate(object):
  
 
     def __call__(self, img, bboxes):        
+        # 添加空数组检查和维度处理
+        if len(bboxes) == 0:
+            return img, bboxes
+            
+        # 确保是二维数组格式 (n,5)
+        if len(bboxes.shape) == 1 and bboxes.size > 0:
+            bboxes = bboxes[np.newaxis, :]
+
+        w,h = img.shape[1], img.shape[0]
         #Chose a random digit to scale by 
         img_shape = img.shape
         
@@ -391,8 +410,12 @@ class Translate(object):
         mask = img[max(-corner_y, 0):min(img.shape[0], -corner_y + img_shape[0]), max(-corner_x, 0):min(img.shape[1], -corner_x + img_shape[1]),:]
         canvas[orig_box_cords[0]:orig_box_cords[2], orig_box_cords[1]:orig_box_cords[3],:] = mask
         img = canvas
-        
-        bboxes[:,:4] += [corner_x, corner_y, corner_x, corner_y]
+        # 修改后的边界框操作（确保二维数组）
+        try:
+            bboxes[:,:4] += [corner_x, corner_y, corner_x, corner_y]
+        except IndexError:
+            return img, np.zeros((0, 4))
+        # bboxes[:,:4] += [corner_x, corner_y, corner_x, corner_y]
         
         
         bboxes = clip_box(bboxes, [0,0,img_shape[1], img_shape[0]], 0.25)

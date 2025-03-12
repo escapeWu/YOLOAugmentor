@@ -48,6 +48,11 @@ class YOLOAugmentor:
         if not os.path.exists(label_path):
             label_path = os.path.join(self.label_dir, f"{base_name}.txt")
         
+        # 新增：检查标签文件是否存在
+        if not os.path.exists(label_path):
+            print(f"Warning: 跳过无标签图片 {img_name}")
+            return None, None, None  # 返回空值
+        
         img = cv2.imread(img_path)[:,:,::-1]
         h, w = img.shape[:2]
         
@@ -61,7 +66,7 @@ class YOLOAugmentor:
             bboxes = self._yolo_to_abs(labels, w, h)
             
         return img, bboxes, (w, h)
-
+    
     def _parse_json_labels(self, data, img_w, img_h):
         """解析Labelme格式的JSON标注"""
         bboxes = []
@@ -107,6 +112,9 @@ class YOLOAugmentor:
     
     @curry
     def horizontal_flip(self, p,  img, bboxes):
+        # 添加维度检查，确保始终是二维数组
+        if len(bboxes.shape) == 1 and bboxes.size > 0:
+            bboxes = bboxes[np.newaxis, :]
         return RandomHorizontalFlip(p=p)(img, bboxes)
     
     @curry
@@ -192,7 +200,12 @@ class YOLOAugmentor:
         """处理整个数据集，生成指定数量的增强图片"""
         for img_name in os.listdir(self.img_dir):
             if img_name.endswith('.jpg'):
-                original_img, original_bboxes, img_info = self._load_data(img_name)
+                # 新增：检查返回值的有效性
+                result = self._load_data(img_name)
+                # 修复条件判断方式
+                if result is None or result[0] is None:  # 直接检查第一个元素是否为None
+                    continue
+                original_img, original_bboxes, img_info = result
                 
                 for i in range(num_augments):
                     # 每次增强前重置随机种子
@@ -259,21 +272,21 @@ class YOLOAugmentor:
 
 if __name__ == "__main__":
     augmentor = YOLOAugmentor(
-        img_dir=r"C:\Users\m1876\Desktop\project\DataAugmentationForObjectDetection",
-        label_dir=r"C:\Users\m1876\Desktop\project\DataAugmentationForObjectDetection",
-        output_dir=r"C:\Users\m1876\Desktop\project\DataAugmentationForObjectDetection\output",
+        img_dir=r"D:\fps-aiming-apex\rawDatasets\ow\process\images",
+        label_dir=r"D:\fps-aiming-apex\rawDatasets\ow\process\labels",
+        output_dir=r"D:\fps-aiming-apex\rawDatasets\ow\process\output",
         class_mapping={'red_blood_bar': 0, 'red_blood_bar_t': 1}
     )
 
     # 修正后的增强序列定义
     aug_sequence = [
-        augmentor.horizontal_flip(0.7),
+        # augmentor.horizontal_flip(0.7),
         augmentor.scale(-0.1, 0.1),  # 直接传递范围参数
         augmentor.random_rotate(-5, 5),     # 直接传递范围参数
         augmentor.random_translate((0, 0.3), (0, 0.3))  # 使用元组指定范围
     ]
 
     # 执行增强处理（生成100张）
-    augmentor.process(aug_sequence, 10)
-    augmentor.showFirstOutput()
-    # augmentor.collect(train=0.7, val=0.2, test=0.1)
+    augmentor.process(aug_sequence, 15)
+    # augmentor.showFirstOutput()
+    augmentor.collect(train=0.7, val=0.2, test=0.1)
