@@ -1,5 +1,7 @@
 # 目标检测数据增强工具
 
+基于：https://blog.paperspace.com/data-augmentation-for-bounding-boxes/ 进行二次封装
+
 基于YOLO格式的自动化数据增强解决方案，支持多种增强策略和数据集划分。
 
 ## 🚀 主要功能
@@ -13,8 +15,6 @@
 ## 🛠️ 快速开始
 
 ```python
-from YOLOAugmentor import YOLOAugmentor
-
 # 初始化增强器（请修改为实际路径）
 augmentor = YOLOAugmentor(
     img_dir=r"C:\Your\Image\Directory",
