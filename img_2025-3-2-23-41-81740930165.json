@@ -1,0 +1,68 @@
+{
+  "version": "2.5.4",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "red_blood_bar",
+      "score": null,
+      "points": [
+        [
+          23.0,
+          299.0
+        ],
+        [
+          219.0,
+          299.0
+        ],
+        [
+          219.0,
+          320.0
+        ],
+        [
+          23.0,
+          320.0
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "difficult": false,
+      "shape_type": "rectangle",
+      "flags": {},
+      "attributes": {},
+      "kie_linking": []
+    },
+    {
+      "label": "red_blood_bar",
+      "score": null,
+      "points": [
+        [
+          0.0,
+          338.0
+        ],
+        [
+          118.0,
+          338.0
+        ],
+        [
+          118.0,
+          356.0
+        ],
+        [
+          0.0,
+          356.0
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "difficult": false,
+      "shape_type": "rectangle",
+      "flags": {},
+      "attributes": {},
+      "kie_linking": []
+    }
+  ],
+  "imagePath": "..\\images\\img_2025-3-2-23-41-81740930165.jpg",
+  "imageData": null,
+  "imageHeight": 640,
+  "imageWidth": 640
+}

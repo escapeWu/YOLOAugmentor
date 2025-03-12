@@ -442,37 +442,46 @@ class RandomRotate(object):
             self.angle = (-self.angle, self.angle)
             
     def __call__(self, img, bboxes):
-    
+        # 在旋转前增加空边界框检查
+        if len(bboxes) == 0:
+            return img, bboxes
+            
         angle = random.uniform(*self.angle)
-    
         w,h = img.shape[1], img.shape[0]
         cx, cy = w//2, h//2
     
         img = rotate_im(img, angle)
     
         corners = get_corners(bboxes)
+        # 增加维度检查防止空数组
+        if corners.size == 0:
+            return img, np.zeros((0, 4))
     
         corners = np.hstack((corners, bboxes[:,4:]))
     
-    
-        corners[:,:8] = rotate_box(corners[:,:8], angle, cx, cy, h, w)
+        # 增加旋转后坐标有效性检查
+        try:
+            corners[:,:8] = rotate_box(corners[:,:8], angle, cx, cy, h, w)
+        except IndexError:
+            return img, np.zeros((0, 4))
     
         new_bbox = get_enclosing_box(corners)
     
-    
-        scale_factor_x = img.shape[1] / w
-    
-        scale_factor_y = img.shape[0] / h
+        # 增加缩放系数非零检查
+        scale_factor_x = img.shape[1] / w if w != 0 else 1
+        scale_factor_y = img.shape[0] / h if h != 0 else 1
     
         img = cv2.resize(img, (w,h))
     
         new_bbox[:,:4] /= [scale_factor_x, scale_factor_y, scale_factor_x, scale_factor_y] 
     
         bboxes  = new_bbox
+        # 增加裁剪后的空数组检查
+        final_boxes = clip_box(bboxes, [0,0,w, h], 0.25)
+        if len(final_boxes) == 0:
+            return img, np.zeros((0, 4))
     
-        bboxes = clip_box(bboxes, [0,0,w, h], 0.25)
-    
-        return img, bboxes
+        return img, final_boxes
 
     
 class Rotate(object):
