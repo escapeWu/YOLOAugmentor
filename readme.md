@@ -1,6 +1,6 @@
 # 目标检测数据增强工具
 
-基于：https://blog.paperspace.com/data-augmentation-for-bounding-boxes/ 进行二次封装，X-AnyLabeling 格式的JSON文件 -> YOLO格式的txt文件
+基于：https://blog.paperspace.com/data-augmentation-for-bounding-boxes/ 进行二次封装，[X-AnyLabeling](https://github.com/CVHub520/X-AnyLabeling) 格式的JSON文件 -> YOLO格式的txt文件
 
 基于YOLO格式的自动化数据增强解决方案，支持多种增强策略和数据集划分。
 
