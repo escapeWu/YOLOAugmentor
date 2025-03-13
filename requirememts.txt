@@ -2,3 +2,4 @@ numpy
 opencv-python==4.10.0.84
 matplotlib
 toolz
+ultralytics
