@@ -2,3 +2,6 @@ output
 __pycache__
 venv
 *.pyc
+runs
+*.pt
+*.onnx

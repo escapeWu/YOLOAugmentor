@@ -1,0 +1,12 @@
+type: yolov8
+name: yolov11n
+display_name: yolov11n
+model_path: C:\Users\m1876\Desktop\project\DataAugmentationForObjectDetection\bloodbar.onnx
+input_width: 640
+input_height: 640
+score_threshold: 0.30
+nms_threshold: 0.45
+confidence_threshold: 0.4
+classes:
+  - red_blood_bar
+  - red_blood_bar_t

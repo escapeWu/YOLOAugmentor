@@ -1,0 +1,6 @@
+train: D:\fps-aiming-apex\rawDatasets\ow\blood_bar_datasets\output\train
+val: D:\fps-aiming-apex\rawDatasets\ow\blood_bar_datasets\output\val
+test: D:\fps-aiming-apex\rawDatasets\ow\blood_bar_datasets\output\test
+
+nc: 2
+names: ['blood_bar', 'blood_bar_t']

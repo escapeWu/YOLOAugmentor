@@ -6,6 +6,8 @@ from data_aug.data_aug import *
 from data_aug.bbox_util import *
 from toolz import curry
 import shutil  # 新增导入
+# 在文件顶部添加导入
+import tqdm
 class YOLOAugmentor:
     def __init__(self, img_dir, label_dir, output_dir, class_mapping=None):
         self.img_dir = img_dir
@@ -123,18 +125,22 @@ class YOLOAugmentor:
         return RandomScale(scale, diff=True)(img, bboxes)
 
     @curry
-    def scale(self, low, high, img, bboxes):  # 修改参数为范围值
+    def scale(self, p, low, high, img, bboxes):
+        if np.random.rand() <= p:  # 根据概率判断是否执行
+            return img, bboxes
         scale = np.random.uniform(low, high)
         return Scale(scale_x=scale, scale_y=scale)(img, bboxes)
-    
+
     @curry
-    def random_rotate(self, low, high, img, bboxes):
-        angle = np.random.uniform(low, high)
-        # 修改为传入角度范围元组
+    def random_rotate(self, p, low, high, img, bboxes):
+        if np.random.rand() <= p:
+            return img, bboxes
         return RandomRotate(angle=(low, high))(img, bboxes)
-    
+
     @curry
-    def random_translate(self, x_range, y_range, img, bboxes):  # 修改为范围元组
+    def random_translate(self, p, x_range, y_range, img, bboxes):
+        if np.random.rand() <= p:
+            return img, bboxes
         tx = np.random.uniform(x_range[0], x_range[1])
         ty = np.random.uniform(y_range[0], y_range[1])
         return Translate(tx, ty)(img, bboxes)
@@ -198,30 +204,28 @@ class YOLOAugmentor:
             
     def process(self, aug_sequence, num_augments):
         """处理整个数据集，生成指定数量的增强图片"""
-        for img_name in os.listdir(self.img_dir):
-            if img_name.endswith('.jpg'):
-                # 新增：检查返回值的有效性
-                result = self._load_data(img_name)
-                # 修复条件判断方式
-                if result is None or result[0] is None:  # 直接检查第一个元素是否为None
-                    continue
-                original_img, original_bboxes, img_info = result
+        img_files = [f for f in os.listdir(self.img_dir) if f.endswith('.jpg')]
+        
+        # 添加带进度条的遍历
+        for img_name in tqdm.tqdm(img_files, desc="Processing images"):
+            result = self._load_data(img_name)
+            if result is None or result[0] is None:
+                continue
+            original_img, original_bboxes, img_info = result
+            
+            # 添加增强次数的子进度条
+            for i in tqdm.trange(num_augments, desc=f"Augmenting {img_name}", leave=False):
+                np.random.seed()
+                random.seed()
                 
-                for i in range(num_augments):
-                    # 每次增强前重置随机种子
-                    np.random.seed()  # 使用系统时间作为种子
-                    random.seed()     # 重置Python内置随机种子
-                    
-                    img = original_img.copy()
-                    bboxes = original_bboxes.copy()
-                    
-                    # 应用数据增强序列时会生成不同的随机参数
-                    for aug_func in aug_sequence:
-                        img, bboxes = aug_func(img, bboxes)
-                    
-                    base_name = os.path.splitext(img_name)[0]
-                    new_name = f"{base_name}_aug_{i}.jpg"
-                    self._save_data(img, bboxes, img_info, new_name)
+                img = original_img.copy()
+                bboxes = original_bboxes.copy()
+                
+                for aug_func in aug_sequence:
+                    img, bboxes = aug_func(img, bboxes)
+                
+                new_name = f"{os.path.splitext(img_name)[0]}_aug_{i}.jpg"
+                self._save_data(img, bboxes, img_info, new_name)
 
     def collect(self, train=0.7, val=0.2, test=0.1):
         """将output目录数据按比例分配到train/val/test子目录"""
@@ -278,12 +282,10 @@ if __name__ == "__main__":
         class_mapping={'red_blood_bar': 0, 'red_blood_bar_t': 1}
     )
 
-    # 修正后的增强序列定义
     aug_sequence = [
-        # augmentor.horizontal_flip(0.7),
-        augmentor.scale(-0.1, 0.1),  # 直接传递范围参数
-        augmentor.random_rotate(-5, 5),     # 直接传递范围参数
-        augmentor.random_translate((0, 0.3), (0, 0.3))  # 使用元组指定范围
+        augmentor.scale(1)(-0.2, 0.2),  # 直接传递范围参数
+        augmentor.random_rotate(0.3)(-3, 3),     # 直接传递范围参数
+        augmentor.random_translate(0.8)((0, 0.3), (0, 0.3))  # 使用元组指定范围
     ]
 
     # 执行增强处理（生成100张）
