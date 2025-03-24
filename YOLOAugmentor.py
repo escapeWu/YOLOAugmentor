@@ -8,6 +8,8 @@ from toolz import curry
 import shutil  # 新增导入
 # 在文件顶部添加导入
 import tqdm
+
+IMG_EXTS = ('.jpg', '.jpeg', '.png', '.tif', '.tiff')
 class YOLOAugmentor:
     def __init__(self, img_dir, label_dir, output_dir, class_mapping=None):
         self.img_dir = img_dir
@@ -55,7 +57,7 @@ class YOLOAugmentor:
             print(f"Warning: 跳过无标签图片 {img_name}")
             return None, None, None  # 返回空值
         
-        img = cv2.imread(img_path)[:,:,::-1]
+        img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_COLOR)[:,:,::-1]
         h, w = img.shape[:2]
         
         if label_path.endswith('.json'):
@@ -106,11 +108,20 @@ class YOLOAugmentor:
         w, h = img_info
         labels = self._abs_to_yolo(bboxes, w, h)
         
-        # 保存图片
-        cv2.imwrite(os.path.join(self.output_dir, img_name), img[:,:,::-1])
-        # 保存标签
-        with open(os.path.join(self.output_dir, img_name.replace('.jpg', '.txt')), 'w') as f:
-            f.write('\n'.join(labels))
+        # 保存图片 [exampleName, .jpg]
+        base_name, ext = os.path.splitext(img_name)
+        # img[:,:, ::-1] BGR -> RGB opencv 默认是BGR ，存储的时候需要转换为RGB
+        success, buf = cv2.imencode(ext, img[:,:,::-1])
+
+        if success:
+            with open(os.path.join(self.output_dir, img_name), 'wb') as f:
+                f.write(buf.tobytes())
+            with open(os.path.join(self.output_dir, f"{base_name}.txt"), 'w') as f:
+                f.write('\n'.join(labels))
+        else:
+            print(f"Error: Failed to encode image {img_name}")
+        
+
     
     @curry
     def horizontal_flip(self, p,  img, bboxes):
@@ -126,24 +137,36 @@ class YOLOAugmentor:
 
     @curry
     def scale(self, p, low, high, img, bboxes):
-        if np.random.rand() <= p:  # 根据概率判断是否执行
+        if np.random.rand() >= p:  # 根据概率判断是否执行
             return img, bboxes
         scale = np.random.uniform(low, high)
         return Scale(scale_x=scale, scale_y=scale)(img, bboxes)
 
     @curry
     def random_rotate(self, p, low, high, img, bboxes):
-        if np.random.rand() <= p:
+        if np.random.rand() >= p:
             return img, bboxes
-        return RandomRotate(angle=(low, high))(img, bboxes)
+        # 从范围中随机选择一个角度
+        angle = np.random.uniform(low, high)
+        return RandomRotate(angle=angle)(img, bboxes)
 
     @curry
     def random_translate(self, p, x_range, y_range, img, bboxes):
-        if np.random.rand() <= p:
+        if np.random.rand() >= p:
             return img, bboxes
         tx = np.random.uniform(x_range[0], x_range[1])
         ty = np.random.uniform(y_range[0], y_range[1])
         return Translate(tx, ty)(img, bboxes)
+
+    @curry
+    def random_bright(self, p, u, img, bboxes):
+        """随机亮度变换 (u为像素值变化范围)"""
+        if np.random.rand() >= p:
+            # 生成包含正负值的随机增量，并限制在合理范围内
+            delta = np.random.randint(-u, u+1)
+            # 使用cv2.add进行饱和运算，避免溢出
+            img = cv2.add(img, delta) if delta >= 0 else cv2.subtract(img, abs(delta))
+        return img, bboxes
 
         
     def _showOutput(self, img, bboxes):
@@ -159,7 +182,7 @@ class YOLOAugmentor:
     def showFirstOutput(self):
         """读取output目录下第一个图片，并读取对应的txt，绘制后展示，按n键显示下一张图片"""
         output_files = os.listdir(self.output_dir)
-        image_files = [f for f in output_files if f.endswith('.jpg')]
+        image_files = [f for f in output_files if f.endswith(IMG_EXTS)]
         if not image_files:
             print("No image files found in the output directory.")
             return
@@ -175,7 +198,7 @@ class YOLOAugmentor:
             image_path = os.path.join(self.output_dir, image_name)
             label_path = os.path.join(self.output_dir, image_name.replace('.jpg', '.txt'))
 
-            img = cv2.imread(image_path)
+            img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)[:,:,::-1]
             h, w = img.shape[:2]
 
             with open(label_path) as f:
@@ -192,6 +215,8 @@ class YOLOAugmentor:
                 reversed_class_mapping = {v: k for k, v in self.class_mapping.items()}
                 cv2.putText(display_img, str(reversed_class_mapping.get(cls, cls)), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                 
+            # scale 0.3 display
+            display_img = cv2.resize(display_img, None, fx=0.3, fy=0.3)
             cv2.imshow('Augmented Image', display_img)
             key = cv2.waitKey(0)
             
@@ -204,7 +229,7 @@ class YOLOAugmentor:
             
     def process(self, aug_sequence, num_augments):
         """处理整个数据集，生成指定数量的增强图片"""
-        img_files = [f for f in os.listdir(self.img_dir) if f.endswith('.jpg')]
+        img_files = [f for f in os.listdir(self.img_dir) if f.endswith(IMG_EXTS)]
         
         # 添加带进度条的遍历
         for img_name in tqdm.tqdm(img_files, desc="Processing images"):
@@ -241,7 +266,6 @@ class YOLOAugmentor:
         # 计算各数据集数量
         train_num = int(np.floor(total * train))
         val_num = int(np.floor(total * val))
-        test_num = total - train_num - val_num
         
         # 创建子目录
         subsets = {
@@ -276,16 +300,16 @@ class YOLOAugmentor:
 
 if __name__ == "__main__":
     augmentor = YOLOAugmentor(
-        img_dir=r"D:\fps-aiming-apex\rawDatasets\ow\process\images",
-        label_dir=r"D:\fps-aiming-apex\rawDatasets\ow\process\labels",
-        output_dir=r"D:\fps-aiming-apex\rawDatasets\ow\process\output",
-        class_mapping={'red_blood_bar': 0, 'red_blood_bar_t': 1}
+        img_dir=r"C:\Users\shancw\Downloads\TIFF-V1\images",
+        label_dir=r"C:\Users\shancw\Downloads\TIFF-V1\labels",
+        output_dir=r"C:\Users\shancw\Downloads\TIFF-V1\output",
+        class_mapping={'left': 0, 'right': 1}
     )
 
     aug_sequence = [
-        augmentor.scale(1)(-0.2, 0.2),  # 直接传递范围参数
-        augmentor.random_rotate(0.3)(-3, 3),     # 直接传递范围参数
-        augmentor.random_translate(0.8)((0, 0.3), (0, 0.3))  # 使用元组指定范围
+        augmentor.random_bright(0.5)(70),  # 80%概率调整亮度（±50像素值）
+        augmentor.scale(0.8)(-0.2, 0.2),  # 直接传递范围参数
+        augmentor.random_translate(1)((0, 0.3), (0, 0.3))  # 使用元组指定范围
     ]
 
     # 执行增强处理（生成100张）
